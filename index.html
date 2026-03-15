@@ -143,7 +143,7 @@
           document.getElementById('pending-count').textContent =
             '入金チェック済・本部未受領: ' + result.pendingCount + '名';
 
-          // 管理者の場合のみ一括確認ボタンを表示
+          // 管理者の場合のみボラ保険一括処ボタンを表示
           if (currentIsAdmin) {
             document.getElementById('batch-confirm-btn').style.display = 'inline-block';
           }
@@ -254,9 +254,9 @@
       });
     }
 
-    // ★ 一括確認（AG列にTRUEを設定）処理
+    // ★ ボラ保険一括処（AG列にTRUEを設定）処理
     function doBatchConfirm() {
-      showConfirm('本部受領済み(AF=TRUE)の全件をAG列に一括確認しますか？').then(function(ok) {
+      showConfirm('本部受領済みの全件をボラ保険確認済に一括確認しますか？').then(function(ok) {
         if (!ok) return;
 
         var btn = document.getElementById('batch-confirm-btn');
@@ -266,12 +266,12 @@
         callGas({ action: 'batchConfirmAG', token: currentToken })
           .then(function(result) {
             btn.disabled = false;
-            btn.textContent = '一括確認(AG)';
+            btn.textContent = 'ボラ保険一括処';
             showConfirm('完了: ' + result.count + '件を確認済みにしました。');
           })
           .catch(function(e) {
             btn.disabled = false;
-            btn.textContent = '一括確認(AG)';
+            btn.textContent = 'ボラ保険一括処';
             showConfirm('エラー: ' + e.message);
           });
       });
