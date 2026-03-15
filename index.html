@@ -1,1 +1,272 @@
 
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>申込状況閲覧ログイン</title>
+  <style>
+    body { font-family: "Helvetica Neue", Arial, sans-serif; padding: 20px; background-color: #f4f4f4; color: #333; text-align: center; }
+
+    /* ログインなどの枠 */
+    .container { max-width: 800px; margin: 40px auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+
+    input, button { padding: 12px; font-size: 16px; margin: 10px 0; border-radius: 4px; border: 1px solid #ddd; width: 80%; max-width: 300px; box-sizing: border-box; }
+    button { background-color: #007bff; color: white; border: none; cursor: pointer; font-weight: bold; }
+    button:hover { background-color: #0056b3; }
+
+    /* テーブルデザイン */
+    .table-wrapper { overflow-x: auto; margin-top: 20px; text-align: left; }
+    table { border-collapse: collapse; width: 100%; min-width: 500px; }
+    th, td { border: 1px solid #ddd; padding: 12px; }
+    th { background-color: #f8f9fa; position: sticky; top: 0; font-weight: bold; }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+
+    #data-area { display: none; }
+    .error { color: #d9534f; margin-top: 10px; font-weight: bold; }
+    .logout-btn { background-color: #6c757d; font-size: 14px; padding: 5px 15px; margin-top: 0; width: auto; }
+
+    /* チェックボックス列 */
+    td.check-col { text-align: center; }
+    td.check-col input[type="checkbox"] { width: auto; margin: 0; cursor: pointer; transform: scale(1.3); }
+
+    /* 未受領カウント表示 */
+    .pending-info { font-size: 14px; color: #d9534f; font-weight: bold; white-space: nowrap; }
+
+    /* カスタム確認ダイアログ */
+    .modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:1000; justify-content:center; align-items:center; }
+    .modal-overlay.active { display:flex; }
+    .modal-box { background:#fff; padding:24px 30px; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,0.2); text-align:center; max-width:350px; }
+    .modal-box p { margin:0 0 20px; font-size:16px; }
+    .modal-box button { width:auto; min-width:80px; margin:0 8px; padding:10px 20px; font-size:14px; }
+    .modal-box .btn-cancel { background-color:#6c757d; }
+    .modal-box .btn-cancel:hover { background-color:#5a6268; }
+  </style>
+</head>
+<body>
+
+  <div id="login-area" class="container">
+    <h2>申込状況閲覧ログイン</h2>
+    <p>お手元のパスワードを入力してください。</p>
+    <input type="password" id="password" placeholder="パスワード">
+    <br>
+    <button onclick="doLogin()">閲覧する</button>
+    <p id="msg" class="error"></p>
+  </div>
+
+  <div id="data-area" class="container">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+      <div style="display:flex; align-items:center; gap:15px; flex-wrap:wrap;">
+        <h2 id="sheet-title" style="margin:0;">データ一覧</h2>
+        <span id="pending-count" class="pending-info"></span>
+      </div>
+      <button class="logout-btn" onclick="doLogout()">閉じる</button>
+    </div>
+    <div id="table-container" class="table-wrapper"></div>
+  </div>
+
+  <div id="confirm-modal" class="modal-overlay">
+    <div class="modal-box">
+      <p id="confirm-msg"></p>
+      <button class="btn-cancel" id="confirm-cancel">キャンセル</button>
+      <button id="confirm-ok">OK</button>
+    </div>
+  </div>
+
+  <script>
+    // ★★★ ここにGAS Web AppのURLを設定してください ★★★
+    var GAS_URL = 'YOUR_GAS_WEB_APP_URL_HERE';
+
+    var currentToken = "";
+    var currentSheetName = "";
+    var currentIsAdmin = false;
+
+    // ★ GAS API呼び出し共通関数
+    function callGas(params) {
+      return fetch(GAS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(params)
+      })
+      .then(function(response) {
+        return response.text();
+      })
+      .then(function(text) {
+        try {
+          var result = JSON.parse(text);
+        } catch(e) {
+          throw new Error('サーバーからの応答を解析できませんでした');
+        }
+        if (result.status === 'error') {
+          throw new Error(result.message);
+        }
+        return result.data;
+      });
+    }
+
+    function doLogin() {
+      var pass = document.getElementById('password').value;
+      var msg = document.getElementById('msg');
+      var btn = document.querySelector('#login-area button');
+
+      if(!pass) return;
+
+      btn.disabled = true;
+      msg.textContent = '認証中...';
+
+      callGas({ action: 'login', password: pass })
+        .then(function(response) {
+          currentToken = response.token;
+          msg.textContent = 'データ読み込み中...';
+          loadData(response.sheetName, response.token);
+        })
+        .catch(function(e) {
+          msg.textContent = e.message;
+          btn.disabled = false;
+        });
+    }
+
+    function loadData(sheetName, token) {
+      currentSheetName = sheetName;
+      document.getElementById('sheet-title').textContent = sheetName;
+
+      callGas({ action: 'getData', sheetName: sheetName, token: token })
+        .then(function(result) {
+          currentIsAdmin = result.isAdmin;
+
+          // 未受領カウントを表示
+          document.getElementById('pending-count').textContent =
+            '入金チェック済・本部未受領: ' + result.pendingCount + '名';
+
+          renderTable(result.data);
+        })
+        .catch(function(e) {
+          document.getElementById('msg').textContent = e.message;
+        });
+    }
+
+    // XSS対策: HTMLエスケープ関数
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function renderTable(data) {
+      document.getElementById('login-area').style.display = 'none';
+      document.getElementById('data-area').style.display = 'block';
+
+      // チェックボックス列の定義（データ配列のインデックスで管理）
+      var checkCols = {};
+      checkCols[3] = { colType: 'AE', msgOn: '入金確認済みにしますか？', msgOff: '入金確認済みを解除しますか？' };
+      if (currentIsAdmin && data[0] && data[0].length > 4) {
+        checkCols[4] = { colType: 'AF', msgOn: '本部受領済みにしますか？', msgOff: '本部受領済みを解除しますか？' };
+      }
+
+      var html = '<table>';
+      for (var i = 0; i < data.length; i++) {
+        html += '<tr>';
+        for (var j = 0; j < data[i].length; j++) {
+          if (i === 0) {
+            // ヘッダー行
+            html += '<th>' + escapeHtml(data[i][j]) + '</th>';
+          } else if (checkCols[j]) {
+            // チェックボックス列（AEまたはAF）
+            var hasData = data[i].some(function(cell, idx) { return !checkCols[idx] && String(cell).trim() !== ''; });
+            if (hasData) {
+              var val = data[i][j];
+              var checked = (val === true || val === 'TRUE' || val === 'true') ? 'checked' : '';
+              html += '<td class="check-col"><input type="checkbox" ' + checked
+                + ' data-coltype="' + checkCols[j].colType + '"'
+                + ' onchange="onCheckChange(this,' + i + ',\'' + checkCols[j].colType + '\')"></td>';
+            } else {
+              html += '<td></td>';
+            }
+          } else {
+            html += '<td>' + escapeHtml(data[i][j]) + '</td>';
+          }
+        }
+        html += '</tr>';
+      }
+      html += '</table>';
+      document.getElementById('table-container').innerHTML = html;
+    }
+
+    // カスタム確認ダイアログ
+    function showConfirm(message) {
+      return new Promise(function(resolve) {
+        var modal = document.getElementById('confirm-modal');
+        document.getElementById('confirm-msg').textContent = message;
+        modal.classList.add('active');
+        document.getElementById('confirm-ok').onclick = function() { modal.classList.remove('active'); resolve(true); };
+        document.getElementById('confirm-cancel').onclick = function() { modal.classList.remove('active'); resolve(false); };
+      });
+    }
+
+    // チェックボックス変更時の処理
+    function onCheckChange(cb, rowIndex, colType) {
+      var newValue = cb.checked;
+      var msg;
+      if (colType === 'AF') {
+        msg = newValue ? '本部受領済みにしますか？' : '本部受領済みを解除しますか？';
+      } else {
+        msg = newValue ? '入金確認済みにしますか？' : '入金確認済みを解除しますか？';
+      }
+
+      showConfirm(msg).then(function(ok) {
+        if (!ok) {
+          cb.checked = !newValue;
+          return;
+        }
+
+        cb.disabled = true;
+
+        callGas({
+          action: 'recordCheck',
+          sheetName: currentSheetName,
+          token: currentToken,
+          rowIndex: rowIndex,
+          value: newValue,
+          colType: colType
+        })
+        .then(function() {
+          cb.disabled = false;
+        })
+        .catch(function(e) {
+          cb.checked = !newValue;
+          cb.disabled = false;
+          showConfirm('エラー: ' + e.message);
+        });
+      });
+    }
+
+    // ログアウト処理
+    function doLogout() {
+      if (!currentToken) {
+        location.reload();
+        return;
+      }
+
+      document.getElementById('sheet-title').textContent = 'ログアウト処理中...';
+
+      callGas({ action: 'logout', token: currentToken })
+        .then(function() {
+          location.reload();
+        })
+        .catch(function() {
+          location.reload();
+        });
+    }
+
+    // Enterキーでもログインできるようにする
+    document.getElementById('password').addEventListener('keypress', function (e) {
+      if (e.key === 'Enter') { doLogin(); }
+    });
+  </script>
+</body>
+</html>
+
