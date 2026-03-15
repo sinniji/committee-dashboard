@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -25,6 +24,9 @@
     #data-area { display: none; }
     .error { color: #d9534f; margin-top: 10px; font-weight: bold; }
     .logout-btn { background-color: #6c757d; font-size: 14px; padding: 5px 15px; margin-top: 0; width: auto; }
+    .batch-btn { background-color: #28a745; font-size: 14px; padding: 5px 15px; margin-top: 0; width: auto; }
+    .batch-btn:hover { background-color: #218838; }
+    .batch-btn:disabled { background-color: #94d3a2; cursor: not-allowed; }
 
     /* チェックボックス列 */
     td.check-col { text-align: center; }
@@ -60,7 +62,10 @@
         <h2 id="sheet-title" style="margin:0;">データ一覧</h2>
         <span id="pending-count" class="pending-info"></span>
       </div>
-      <button class="logout-btn" onclick="doLogout()">閉じる</button>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button id="batch-confirm-btn" class="batch-btn" onclick="doBatchConfirm()" style="display:none;">一括確認(AG)</button>
+        <button class="logout-btn" onclick="doLogout()">閉じる</button>
+      </div>
     </div>
     <div id="table-container" class="table-wrapper"></div>
   </div>
@@ -75,7 +80,7 @@
 
   <script>
     // ★★★ ここにGAS Web AppのURLを設定してください ★★★
-    var GAS_URL = 'https://script.google.com/macros/s/AKfycbzDNMouYtXS-ahYye6viBpEnvB__dnWwDHfaRFf5DkZ8boyviPRPTGWRMlmsM4nu2X_/exec';
+    var GAS_URL = 'YOUR_GAS_WEB_APP_URL_HERE';
 
     var currentToken = "";
     var currentSheetName = "";
@@ -137,6 +142,11 @@
           // 未受領カウントを表示
           document.getElementById('pending-count').textContent =
             '入金チェック済・本部未受領: ' + result.pendingCount + '名';
+
+          // 管理者の場合のみ一括確認ボタンを表示
+          if (currentIsAdmin) {
+            document.getElementById('batch-confirm-btn').style.display = 'inline-block';
+          }
 
           renderTable(result.data);
         })
@@ -244,6 +254,29 @@
       });
     }
 
+    // ★ 一括確認（AG列にTRUEを設定）処理
+    function doBatchConfirm() {
+      showConfirm('本部受領済み(AF=TRUE)の全件をAG列に一括確認しますか？').then(function(ok) {
+        if (!ok) return;
+
+        var btn = document.getElementById('batch-confirm-btn');
+        btn.disabled = true;
+        btn.textContent = '処理中...';
+
+        callGas({ action: 'batchConfirmAG', token: currentToken })
+          .then(function(result) {
+            btn.disabled = false;
+            btn.textContent = '一括確認(AG)';
+            showConfirm('完了: ' + result.count + '件を確認済みにしました。');
+          })
+          .catch(function(e) {
+            btn.disabled = false;
+            btn.textContent = '一括確認(AG)';
+            showConfirm('エラー: ' + e.message);
+          });
+      });
+    }
+
     // ログアウト処理
     function doLogout() {
       if (!currentToken) {
@@ -269,4 +302,3 @@
   </script>
 </body>
 </html>
-
