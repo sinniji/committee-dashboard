@@ -179,6 +179,11 @@
 
       var html = '<table>';
       for (var i = 0; i < data.length; i++) {
+        // ヘッダー行以外は、E,G,I列（インデックス1,2,3）にデータがある行のみ表示
+        if (i > 0) {
+          var hasData = data[i].some(function(cell, idx) { return idx > 0 && !checkCols[idx] && String(cell).trim() !== ''; });
+          if (!hasData) continue;
+        }
         html += '<tr>';
         for (var j = 0; j < data[i].length; j++) {
           if (i === 0) {
@@ -186,16 +191,11 @@
             html += '<th>' + escapeHtml(data[i][j]) + '</th>';
           } else if (checkCols[j]) {
             // チェックボックス列（AEまたはAF）
-            var hasData = data[i].some(function(cell, idx) { return !checkCols[idx] && String(cell).trim() !== ''; });
-            if (hasData) {
-              var val = data[i][j];
-              var checked = (val === true || val === 'TRUE' || val === 'true') ? 'checked' : '';
-              html += '<td class="check-col"><input type="checkbox" ' + checked
-                + ' data-coltype="' + checkCols[j].colType + '"'
-                + ' onchange="onCheckChange(this,' + i + ',\'' + checkCols[j].colType + '\')"></td>';
-            } else {
-              html += '<td></td>';
-            }
+            var val = data[i][j];
+            var checked = (val === true || val === 'TRUE' || val === 'true') ? 'checked' : '';
+            html += '<td class="check-col"><input type="checkbox" ' + checked
+              + ' data-coltype="' + checkCols[j].colType + '"'
+              + ' onchange="onCheckChange(this,' + i + ',\'' + checkCols[j].colType + '\')"></td>';
           } else {
             html += '<td>' + escapeHtml(data[i][j]) + '</td>';
           }
