@@ -64,6 +64,7 @@
       </div>
       <div style="display:flex; gap:10px; align-items:center;">
         <button id="batch-confirm-btn" class="batch-btn" onclick="doBatchConfirm()" style="display:none;">ボラ保険一括処理</button>
+        <button id="batch-confirm-af-btn" class="batch-btn" onclick="doBatchConfirmAF()" style="display:none;">本部受領一括処理</button>
         <button class="logout-btn" onclick="doLogout()">閉じる</button>
       </div>
     </div>
@@ -146,6 +147,7 @@
           // 管理者の場合のみボラ保険一括処ボタンを表示
           if (currentIsAdmin) {
             document.getElementById('batch-confirm-btn').style.display = 'inline-block';
+            document.getElementById('batch-confirm-af-btn').style.display = 'inline-block'; 
           }
 
           renderTable(result.data);
@@ -251,6 +253,32 @@
           cb.disabled = false;
           showConfirm('エラー: ' + e.message);
         });
+      });
+    }
+
+    // ★ 本部受領一括処理（表示中の支部のAE=TRUEの行に対し、AF列をTRUEにする）
+    function doBatchConfirmAF() {
+      showConfirm('【' + currentSheetName + '】の入金確認済みデータを本部受領済みに一括処理しますか？').then(function(ok) {
+        if (!ok) return;
+    
+        var btn = document.getElementById('batch-confirm-af-btn');
+        btn.disabled = true;
+        btn.textContent = '処理中...';
+    
+        callGas({ action: 'batchConfirmAF', token: currentToken, sheetName: currentSheetName })
+          .then(function(result) {
+            btn.disabled = false;
+            btn.textContent = '本部受領一括処理';
+            showConfirm('完了: ' + result.count + '件を本部受領済みにしました。').then(function() {
+              // 画面を最新データで再描画
+              loadData(currentSheetName, currentToken);
+            });
+          })
+          .catch(function(e) {
+            btn.disabled = false;
+            btn.textContent = '本部受領一括処理';
+            showConfirm('エラー: ' + e.message);
+          });
       });
     }
 
