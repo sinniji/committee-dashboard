@@ -174,9 +174,11 @@
 
       // チェックボックス列の定義（データ配列のインデックスで管理）
       var checkCols = {};
-      checkCols[4] = { colType: 'AE', msgOn: '入金確認済みにしますか？', msgOff: '入金確認済みを解除しますか？' };
-      if (currentIsAdmin && data[0] && data[0].length > 5) {
-        checkCols[5] = { colType: 'AF', msgOn: '本部受領済みにしますか？', msgOff: '本部受領済みを解除しますか？' };
+      if (currentIsAdmin) {
+          checkCols[3] = { colType: 'AE', msgOn: '入金確認済みにしますか？', msgOff: '入金確認済みを解除しますか？' };
+          checkCols[4] = { colType: 'AF', msgOn: '本部受領済みにしますか？', msgOff: '本部受領済みを解除しますか？' };
+      } else {
+          checkCols[4] = { colType: 'AE', msgOn: '入金確認済みにしますか？', msgOff: '入金確認済みを解除しますか？' };
       }
 
       var html = '<table>';
